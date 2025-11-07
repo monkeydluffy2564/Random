@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สุ่มชื่อเกมโชว์ (SmartRoll)</title>
+    <!-- ใช้ Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* (CSS เดิม... ไม่เปลี่ยนแปลง) */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Sarabun:wght@400;700&display=swap');
+        body { font-family: 'Sarabun', 'Inter', sans-serif; overscroll-behavior: none; }
+        .flash-winner { animation: flash 0.5s ease-out 2; }
+        @keyframes flash { 0%, 100% { background-color: #1e3a8a; } 50% { background-color: #60a5fa; } }
+        .letter-reveal { display: inline-block; animation: reveal 0.3s ease-out forwards; opacity: 0; transform: scale(0.5); }
+        @keyframes reveal { from { opacity: 0; transform: scale(0.5) translateY(-20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        textarea::-webkit-scrollbar { display: none; }
+        textarea { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* (NEW) เพิ่มสไตล์สำหรับปุ่มขนาดเล็ก */
+        .btn-small {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.875rem;
+            border-radius: 0.375rem;
+            transition: all 0.2s;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
+
+    <!-- Main Application Container -->
+    <div class="w-full max-w-4xl mx-auto">
+        
+        <header class="text-center mb-6">
+            <h1 class="text-4xl md:text-5xl font-black text-blue-300">สุ่มชื่อเกมโชว์</h1>
+            <p id="slogan" class="text-xl md:text-2xl text-blue-100 mt-2">ทุกตัวอักษรคือความลุ้น!</p>
+        </header>
+
+        <!-- Reveal Area -->
+        <div id="reveal-area" class="w-full min-h-[150px] md:min-h-[200px] bg-blue-900/50 rounded-xl shadow-2xl flex items-center justify-center p-6 mb-6 border-2 border-blue-700">
+            <span id="reveal-text" class="text-4xl md:text-7xl font-bold font-mono tracking-widest text-gray-400 select-none">
+                _ _ _ _ _
+            </span>
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <button id="start-button" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-lg text-2xl shadow-lg transition duration-200 ease-in-out transform hover:scale-105">
+                เริ่มสุ่ม!
+            </button>
+            <button id="next-button" class="bg-green-600 hover:bg-green-500 text-white font-bold py-4 px-6 rounded-lg text-2xl shadow-lg transition duration-200 ease-in-out transform hover:scale-105 hidden">
+                สุ่มคนถัดไป
+            </button>
+            <button id="reveal-answer-button" class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-4 px-6 rounded-lg text-2xl shadow-lg transition duration-200 ease-in-out transform hover:scale-105 hidden">
+                เฉลย!
+            </button>
+            <button id="reset-button" class="bg-red-700 hover:bg-red-600 text-white font-bold py-4 px-6 rounded-lg text-xl shadow-lg transition duration-200 ease-in-out hidden">
+                เริ่มรอบใหม่ (Reset)
+            </button>
+            <button id="settings-button" class="md:col-span-3 bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold py-3 px-6 rounded-lg text-lg shadow-lg transition duration-200">
+                ตั้งค่า (Settings)
+            </button>
+        </div>
+
+        <!-- Data Input & History: ใส่รายชื่อและประวัติ -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Name Input -->
+            <div class="bg-gray-800 p-4 rounded-lg shadow-inner space-y-3">
+                <h3 class="text-lg font-semibold text-blue-200">รายชื่อนักเรียน</h3>
+                
+                <!-- (NEW) Firebase List Management -->
+                <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-700 space-y-2">
+                    <label class="block text-sm font-medium text-gray-400">จัดการรายชื่อที่บันทึกไว้ (Firebase)</label>
+                    <div class="flex gap-2">
+                        <select id="list-select" class="w-full bg-gray-700 text-white border border-gray-600 rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">กำลังโหลด...</option>
+                        </select>
+                        <button id="load-selected-list-button" class="btn-small bg-blue-600 hover:bg-blue-500 text-white whitespace-nowrap">โหลด</button>
+                        <button id="delete-selected-list-button" class="btn-small bg-red-600 hover:bg-red-500 text-white whitespace-nowrap">ลบ</button>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="new-list-name-input" class="w-full bg-gray-700 text-white border border-gray-600 rounded-md p-2 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="ชื่อลิสต์ใหม่...">
+                        <button id="save-as-new-list-button" class="btn-small bg-green-600 hover:bg-green-500 text-white whitespace-nowrap">บันทึกใหม่</button>
+                    </div>
+                     <button id="update-selected-list-button" class="w-full btn-small bg-yellow-700 hover:bg-yellow-600 text-white whitespace-nowrap">บันทึกทับ (อัปเดต) ลิสต์ที่เลือก</button>
+                </div>
+                
+                <!-- Text Area -->
+                <textarea id="name-list" class="w-full h-36 bg-gray-900 text-gray-100 rounded-md p-3 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="สมชาย&#10;สุนีย์&#10;กนกวรรณ&#10;อภิชา&#10;ปวีณ์&#10;สายรุ้ง&#10;อรอนงค์">สมชาย
+สุนีย์
+กนกวรรณ
+อภิชา
+ปวีณ์
+สายรุ้ง
+อรอนงค์
+สมศักดิ์
+สมบูรณ์</textarea>
+                <button id="update-list-button" class="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
+                    โหลดรายชื่อนี้เข้าเกม
+                </button>
+            </div>
+
+            <!-- History -->
+            <div class="bg-gray-800 p-4 rounded-lg shadow-inner">
+                <h3 class="text-lg font-semibold text-blue-200 mb-2">ประวัติการเลือก (รอบนี้)</h3>
+                <div id="history-area" class="w-full h-48 bg-gray-900 text-gray-400 rounded-md p-3 border border-gray-700 overflow-y-auto">
+                    <p>ยังไม่มีใครถูกเลือก...</p>
+                </div>
+                <div class="text-sm mt-2 text-gray-500">
+                    เหลือ <span id="names-remaining" class="font-bold text-white">0</span> คน /
+                    จาก <span id="names-total" class="font-bold text-white">0</span> คน
+                </div>
+            </div>
+        </div>
+
+    </div> <!-- End Main Application Container -->
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 hidden backdrop-blur-sm">
+        <!-- (Modal Content ... ไม่เปลี่ยนแปลง) -->
+        <div class="bg-white text-gray-900 w-full max-w-md p-6 rounded-xl shadow-2xl">
+            <h2 class="text-2xl font-bold mb-6 text-center">ตั้งค่าการสุ่ม</h2>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <label for="reveal-delay" class="font-medium">ความหน่วง (ms)</label>
+                    <input type="number" id="reveal-delay" value="300" min="50" step="50" class="w-24 p-2 border border-gray-300 rounded-md text-center">
+                </div>
+                <div class="flex items-center justify-between">
+                    <label for="sfx-toggle" class="font-medium">เสียงเอฟเฟกต์ (ติ๊ก)</label>
+                    <input type="checkbox" id="sfx-toggle" class="h-6 w-6 rounded text-blue-600" checked>
+                </div>
+                <div class="flex items-center justify-between">
+                    <label for="tts-toggle" class="font-medium">อ่านชื่อผู้โชคดี (TTS)</label>
+                    <input type="checkbox" id="tts-toggle" class="h-6 w-6 rounded text-blue-600" checked>
+                </div>
+                <div class="flex items-center justify-between">
+                    <label for="no-repeat-toggle" class="font-medium">ไม่สุ่มชื่อซ้ำ (ในรอบนี้)</label>
+                    <input type="checkbox" id="no-repeat-toggle" class="h-6 w-6 rounded text-blue-600" checked>
+                </div>
+                <div class="border-t pt-4 mt-4">
+                    <label class="font-medium mb-2 block">โหมดการสุ่ม:</label>
+                    <div class="flex items-center mb-2">
+                        <input type="radio" id="mode-auto" name="revealMode" value="auto" class="h-5 w-5 text-blue-600" checked>
+                        <label for="mode-auto" class="ml-2 text-sm">1. สลับ -> จัดเรียงอัตโนมัติ</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="radio" id="mode-manual" name="revealMode" value="manual" class="h-5 w-5 text-blue-600">
+                        <label for="mode-manual" class="ml-2 text-sm">2. สลับ -> รอ "เฉลย"</label>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- (NEW) History Column (Restored) -->
+            <div class="bg-gray-800 p-4 rounded-lg shadow-inner">
+                <h3 class="text-lg font-semibold text-blue-200 mb-2">ประวัติการเลือก (รอบนี้)</h3>
+                <div id="history-area" class="w-full h-48 bg-gray-900 text-gray-400 rounded-md p-3 border border-gray-700 overflow-y-auto">
+                    <p>ยังไม่มีใครถูกเลือก...</p>
+                </div>
+                <div class="text-sm mt-2 text-gray-500">
+                    เหลือ <span id="names-remaining" class="font-bold text-white">0</span> คน /
+                    จาก <span id="names-total" class="font-bold text-white">0</span> คน
+                </div>
+            </div>
+
+            <!-- (REMOVED) Misplaced Button Removed from here -->
+            <!-- <button id="close-settings-button" ... > -->
+
+        </div>
+    </div>
+
+    <!-- (NEW) Settings Modal (Restored) -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 hidden backdrop-blur-sm">
+        <div class="bg-white text-gray-900 w-full max-w-md p-6 rounded-xl shadow-2xl">
+            <h2 class="text-2xl font-bold mb-6 text-center">ตั้งค่าการสุ่ม</h2>
+            
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <label for="reveal-delay" class="font-medium">ความหน่วง (ms)</label>
+                    <input type="number" id="reveal-delay" value="300" min="50" step="50" class="w-24 p-2 border border-gray-300 rounded-md text-center">
+                </div>
+                
+                <div class="flex items-center justify-between">
+                    <label for="sfx-toggle" class="font-medium">เสียงเอฟเฟกต์ (ติ๊ก)</label>
+                    <input type="checkbox" id="sfx-toggle" class="h-6 w-6 rounded text-blue-600" checked>
+                </div>
+                
+                <div class="flex items-center justify-between">
+                    <label for="tts-toggle" class="font-medium">อ่านชื่อผู้โชคดี (TTS)</label>
+                    <input type="checkbox" id="tts-toggle" class="h-6 w-6 rounded text-blue-600" checked>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <label for="no-repeat-toggle" class="font-medium">ไม่สุ่มชื่อซ้ำ (ในรอบนี้)</label>
+                    <input type="checkbox" id="no-repeat-toggle" class="h-6 w-6 rounded text-blue-600" checked>
+                </div>
+
+                <!-- (NEW) Mode Selection -->
+                <div class="border-t pt-4 mt-4">
+                    <label class="font-medium mb-2 block">โหมดการสุ่ม:</label>
+                    <div class="flex items-center mb-2">
+                        <input type="radio" id="mode-auto" name="revealMode" value="auto" class="h-5 w-5 text-blue-600" checked>
+                        <label for="mode-auto" class="ml-2 text-sm">1. สลับ -> จัดเรียงอัตโนมัติ</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="radio" id="mode-manual" name="revealMode" value="manual" class="h-5 w-5 text-blue-600">
+                        <label for="mode-manual" class="ml-2 text-sm">2. สลับ -> รอ "เฉลย"</label>
+                    </div>
+                </div>
+
+            </div>
+
+            <button id="close-settings-button" class="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200">
+                บันทึกและปิด
+            </button>
+        </div>
+    </div>
+
+
+    <!-- JavaScript Logic -->
+    <script type="module">
+        // (NEW) Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, setDoc, getDoc, doc, collection, addDoc, getDocs, onSnapshot, deleteDoc, updateDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // (NEW) Firebase Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyBHmJ7M5qf20lKPTB9_aE2Ppa0-jTryuuI",
+            authDomain: "programpp-91f08.firebaseapp.com",
+            projectId: "programpp-91f08",
+            storageBucket: "programpp-91f08.firebasestorage.app",
+            messagingSenderId: "415403943738",
+            appId: "1:415403943738:web:f56ec72de49f81f0315203",
+            measurementId: "G-W19QNQQR25"
+        };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-smartroll-app';
+        let db, auth, userId;
+        let listCollectionPath; // = `artifacts/${appId}/public/data/name-lists`
+        let listsCollection;
+
+        // --- STATE MANAGEMENT ---
+        let masterNames = [];
+        let availableNames = [];
+        let pickedNames = [];
+        let isSpinning = false;
+        let revealTimer = null;
+        let currentWinner = null;
+        let revealQueue = [];
+        let letterSpans = [];
+        let revealIndex = 0;
+
+        // (NEW) Settings Storage Key
+        const SETTINGS_STORAGE_KEY = 'smartRollSettings';
+
+        // Settings (Default)
+        const settings = {
+            revealDelayMs: 300,
+            enableSFX: true,
+            ttsFinal: true,
+            noRepeat: true,
+            revealMode: 'auto',
+        };
+
+        // Audio Context
+        let audioCtx = null;
+        const tickFrequencies = [880, 987, 1046, 1174, 1318];
+        let tickIndex = 0;
+
+        // Grapheme Segmenter
+        const segmenter = new Intl.Segmenter('th', { granularity: 'grapheme' });
+        const getGraphemes = (str) => Array.from(segmenter.segment(str)).map(s => s.segment);
+        
+        // DOM Elements
+        const revealArea = document.getElementById('reveal-area');
+        const revealText = document.getElementById('reveal-text');
+        const startButton = document.getElementById('start-button');
+        const nextButton = document.getElementById('next-button');
+        const revealAnswerButton = document.getElementById('reveal-answer-button');
+        const resetButton = document.getElementById('reset-button');
+        const settingsButton = document.getElementById('settings-button');
+        const settingsModal = document.getElementById('settings-modal');
+        const closeSettingsButton = document.getElementById('close-settings-button');
+        const nameListTextArea = document.getElementById('name-list');
+        const updateListButton = document.getElementById('update-list-button');
+        const historyArea = document.getElementById('history-area');
+        const namesRemainingEl = document.getElementById('names-remaining');
+        const namesTotalEl = document.getElementById('names-total');
+
+        // (NEW) Firebase UI DOM Elements
+        const listSelect = document.getElementById('list-select');
+        const loadSelectedListButton = document.getElementById('load-selected-list-button');
+        const deleteSelectedListButton = document.getElementById('delete-selected-list-button');
+        const newListNameInput = document.getElementById('new-list-name-input');
+        const saveAsNewListButton = document.getElementById('save-as-new-list-button');
+        const updateSelectedListButton = document.getElementById('update-selected-list-button');
+
+
+        // --- CORE LOGIC ---
+        // (Shuffle, Start Reveal, Reveal Next, Scramble, Announce Winner... 
+        //  ...ทั้งหมดนี้ไม่เปลี่ยนแปลงจากเดิม)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+        function startRevealProcess() {
+            clearTimeout(revealTimer);
+            if (isSpinning) return;
+            if (availableNames.length === 0) {
+                revealText.textContent = "รายชื่อหมดแล้ว!";
+                revealText.classList.add("text-red-400");
+                showButton(resetButton);
+                hideButton(startButton);
+                hideButton(nextButton);
+                hideButton(revealAnswerButton);
+                return;
+            }
+            isSpinning = true;
+            hideButton(startButton);
+            hideButton(nextButton);
+            hideButton(resetButton);
+            hideButton(revealAnswerButton);
+            revealArea.classList.remove('flash-winner');
+            revealText.classList.remove("text-red-400");
+            currentWinner = availableNames[Math.floor(Math.random() * availableNames.length)];
+            const winnerGraphemes = getGraphemes(currentWinner);
+            const shuffledGraphemes = shuffleArray([...winnerGraphemes]);
+            revealQueue = shuffledGraphemes;
+            revealIndex = 0;
+            letterSpans = [];
+            revealText.innerHTML = '';
+            for (let i = 0; i < winnerGraphemes.length; i++) {
+                const span = document.createElement('span');
+                span.textContent = '_';
+                span.className = 'text-gray-600 transition-all duration-100 ease-in-out inline-block mx-1';
+                revealText.appendChild(span);
+                letterSpans.push(span);
+            }
+            revealTimer = setTimeout(revealNextShuffledGrapheme, settings.revealDelayMs);
+        }
+        function revealNextShuffledGrapheme() {
+            if (revealQueue.length === 0) {
+                if (settings.revealMode === 'auto') {
+                    revealTimer = setTimeout(startScrambleEffect, settings.revealDelayMs * 3);
+                } else {
+                    showButton(revealAnswerButton);
+                }
+                return;
+            }
+            playTickSFX();
+            const nextGrapheme = revealQueue.shift();
+            const spanToFill = letterSpans[revealIndex];
+            if (spanToFill) {
+                spanToFill.textContent = nextGrapheme;
+                spanToFill.className = 'letter-reveal transition-all duration-100 ease-in-out inline-block mx-1 text-white'; 
+                revealIndex++;
+            }
+            revealTimer = setTimeout(revealNextShuffledGrapheme, settings.revealDelayMs);
+        }
+        function startScrambleEffect() {
+            const finalGraphemes = getGraphemes(currentWinner);
+            const scrambleDuration = 1500; 
+            const scrambleInterval = 50;
+            const scrambleEndTime = Date.now() + scrambleDuration;
+            scrambleLoop(scrambleEndTime, finalGraphemes);
+        }
+        function scrambleLoop(endTime, finalGraphemes) {
+            const now = Date.now();
+            if (now >= endTime) {
+                for (let i = 0; i < letterSpans.length; i++) {
+                    letterSpans[i].textContent = finalGraphemes[i];
+                    letterSpans[i].className = 'letter-reveal transition-all duration-100 ease-in-out inline-block mx-1 text-white';
+                }
+                announceWinner(currentWinner);
+            } else {
+                playTickSFX();
+                for (let span of letterSpans) {
+                    const randomGrapheme = finalGraphemes[Math.floor(Math.random() * finalGraphemes.length)];
+                    span.textContent = randomGrapheme;
+                }
+                revealTimer = setTimeout(() => scrambleLoop(endTime, finalGraphemes), 50);
+            }
+        }
+        function announceWinner(winnerName) {
+            clearTimeout(revealTimer);
+            isSpinning = false;
+            revealArea.classList.add('flash-winner');
+            playWinnerSFX();
+            if (settings.ttsFinal) {
+                speak(winnerName);
+            }
+            if (settings.noRepeat) {
+                availableNames = availableNames.filter(name => name !== winnerName);
+                if (!pickedNames.includes(winnerName)) {
+                    pickedNames.push(winnerName);
+                }
+            }
+            if (availableNames.length > 0) {
+                showButton(nextButton);
+            } else {
+                showButton(resetButton);
+                revealText.textContent = "สุ่มครบทุกคนแล้ว!";
+            }
+            updateHistoryUI();
+        }
+
+        // --- (NEW) FIREBASE FUNCTIONS ---
+        
+        /**
+         * (NEW) Initialize Firebase and Authentication
+         */
+        async function initFirebase() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                setLogLevel('Debug'); // สำหรับ Debug
+                console.log("Firebase initialized.");
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        console.log("User signed in:", user.uid);
+                        userId = user.uid;
+                        // Setup public path
+                        listCollectionPath = `artifacts/${appId}/public/data/name-lists`;
+                        listsCollection = collection(db, listCollectionPath);
+                        loadFirebaseLists(); // เริ่มโหลดลิสต์เมื่อ Auth พร้อม
+                    } else {
+                        console.log("User not signed in, signing in anonymously...");
+                        // ตรวจสอบ token จาก Canvas
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+                listSelect.innerHTML = '<option value="">Firebase Error</option>';
+            }
+        }
+
+        /**
+         * (NEW) Load lists from Firebase into dropdown (real-time)
+         */
+        function loadFirebaseLists() {
+            if (!listsCollection) return;
+            
+            onSnapshot(listsCollection, (snapshot) => {
+                console.log("Firebase snapshot updated.");
+                listSelect.innerHTML = ''; // Clear existing options
+                
+                if (snapshot.empty) {
+                    listSelect.innerHTML = '<option value="">ไม่มีลิสต์ที่บันทึกไว้</option>';
+                    return;
+                }
+
+                snapshot.forEach((doc) => {
+                    const list = doc.data();
+                    const option = document.createElement('option');
+                    option.value = doc.id;
+                    option.textContent = list.name || 'Untitled';
+                    listSelect.appendChild(option);
+                });
+            }, (error) => {
+                console.error("Error loading lists from Firebase:", error);
+                listSelect.innerHTML = '<option value="">Error loading</option>';
+            });
+        }
+
+        /**
+         * (NEW) Load selected list from Firebase into text area
+         */
+        async function handleLoadSelectedList() {
+            const docId = listSelect.value;
+            if (!docId) {
+                console.log("No list selected.");
+                return;
+            }
+            try {
+                const docRef = doc(db, listCollectionPath, docId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    nameListTextArea.value = docSnap.data().names || '';
+                    console.log("List loaded:", docSnap.data().name);
+                    // โหลดเข้าเกมด้วยเลย
+                    updateMasterNamesFromTextArea();
+                } else {
+                    console.warn("Document does not exist.");
+                }
+            } catch (error) {
+                console.error("Error loading document:", error);
+            }
+        }
+
+        /**
+         * (NEW) Save text area content as a new list
+         */
+        async function handleSaveAsNewList() {
+            const listName = newListNameInput.value.trim();
+            const names = nameListTextArea.value.trim();
+            
+            if (!listName) {
+                console.warn("New list name is empty.");
+                newListNameInput.focus();
+                return;
+            }
+            if (!names) {
+                console.warn("Text area is empty.");
+                nameListTextArea.focus();
+                return;
+            }
+
+            try {
+                const docRef = await addDoc(listsCollection, {
+                    name: listName,
+                    names: names
+                });
+                console.log("New list saved with ID:", docRef.id);
+                newListNameInput.value = ''; // Clear input
+                // onSnapshot จะอัปเดต dropdown ให้อัตโนมัติ
+            } catch (error) {
+                console.error("Error saving new list:", error);
+            }
+        }
+
+        /**
+         * (NEW) Update (overwrite) an existing list
+         */
+        async function handleUpdateSelectedList() {
+            const docId = listSelect.value;
+            const names = nameListTextArea.value.trim();
+
+            if (!docId) {
+                console.warn("No list selected to update.");
+                return;
+            }
+            
+            // เพิ่มการยืนยัน (แม้ว่าจะไม่ใช้ confirm()) - ใช้การตั้งชื่อปุ่มแทน
+            console.log("Updating list:", docId);
+
+            try {
+                const docRef = doc(db, listCollectionPath, docId);
+                // ใช้ updateDoc แทน setDoc เพื่อไม่ให้ลบ field 'name'
+                await updateDoc(docRef, {
+                    names: names
+                });
+                console.log("List updated:", docId);
+            } catch (error) {
+                console.error("Error updating list:", error);
+            }
+        }
+
+        /**
+         * (NEW) Delete selected list
+         */
+        async function handleDeleteSelectedList() {
+            const docId = listSelect.value;
+            if (!docId) {
+                console.warn("No list selected to delete.");
+                return;
+            }
+
+            // (ควรจะมี Modal ยืนยัน) แต่ตอนนี้ลบเลย
+            console.log("Deleting list:", docId);
+            
+            try {
+                const docRef = doc(db, listCollectionPath, docId);
+                await deleteDoc(docRef);
+                console.log("List deleted:", docId);
+                // onSnapshot จะอัปเดต dropdown ให้อัตโนมัติ
+            } catch (error) {
+                console.error("Error deleting list:", error);
+            }
+        }
+
+
+        // --- UI & UTILITY FUNCTIONS ---
+
+        /**
+         * (RENAMED) โหลดรายชื่อจาก Textarea เข้าสู่ State ของเกม
+         */
+        function updateMasterNamesFromTextArea() {
+            const names = nameListTextArea.value
+                .split('\n')
+                .map(name => name.trim())
+                .filter(name => name.length > 0);
+            
+            masterNames = [...new Set(names)]; // กันชื่อซ้ำใน Master
+            resetSession();
+            
+            const updateButton = document.getElementById('update-list-button');
+            updateButton.textContent = 'โหลดเข้าเกมแล้ว!';
+            setTimeout(() => { updateButton.textContent = 'โหลดรายชื่อนี้เข้าเกม'; }, 2000);
+        }
+
+        function resetSession() {
+            availableNames = [...masterNames];
+            pickedNames = [];
+            updateHistoryUI();
+            revealText.innerHTML = '<span class="text-gray-400">_ _ _ _ _</span>';
+            revealText.classList.remove("text-red-400");
+            revealArea.classList.remove('flash-winner');
+            showButton(startButton);
+            hideButton(nextButton);
+            hideButton(resetButton);
+            hideButton(revealAnswerButton);
+        }
+
+        function updateHistoryUI() {
+            namesTotalEl.textContent = masterNames.length;
+            namesRemainingEl.textContent = availableNames.length;
+            if (pickedNames.length === 0) {
+                historyArea.innerHTML = '<p>ยังไม่มีใครถูกเลือก...</p>';
+            } else {
+                historyArea.innerHTML = pickedNames
+                    .map(name => `<div class="bg-gray-700 text-white px-3 py-1 rounded-full text-sm inline-block m-1">${name}</div>`)
+                    .join('');
+            }
+        }
+        
+        function showButton(btn) { btn.classList.remove('hidden'); }
+        function hideButton(btn) { btn.classList.add('hidden'); }
+        
+        // (SFX and TTS functions ... ไม่เปลี่ยนแปลง)
+        function initAudio() {
+            if (!audioCtx) {
+                try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } 
+                catch (e) { console.warn("Web Audio API not supported."); settings.enableSFX = false; }
+            }
+        }
+        function playTickSFX() {
+            if (!settings.enableSFX || !audioCtx) return;
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            tickIndex = (tickIndex + 1) % tickFrequencies.length;
+            oscillator.frequency.setValueAtTime(tickFrequencies[tickIndex], audioCtx.currentTime);
+            oscillator.type = 'sine';
+            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+            oscillator.start(audioCtx.currentTime);
+            oscillator.stop(audioCtx.currentTime + 0.1);
+        }
+        function playWinnerSFX() {
+            if (!settings.enableSFX || !audioCtx) return;
+            const frequencies = [523, 659, 783, 1046];
+            frequencies.forEach((freq, i) => {
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime + i * 0.1);
+                oscillator.type = 'triangle';
+                gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime + i * 0.1);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.1 + 0.2);
+                oscillator.start(audioCtx.currentTime + i * 0.1);
+                oscillator.stop(audioCtx.currentTime + i * 0.1 + 0.2);
+            });
+        }
+        function speak(text) {
+            if (!settings.ttsFinal || !('speechSynthesis' in window)) {
+                console.warn("Speech Synthesis not supported.");
+                return;
+            }
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'th-TH';
+            utterance.rate = 0.9;
+            utterance.pitch = 1.1;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // --- (NEW) SETTINGS PERSISTENCE ---
+        
+        /**
+         * (NEW) Save settings to Local Storage
+         */
+        function saveSettingsToLocalStorage() {
+            try {
+                localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+                console.log("Settings saved to localStorage.");
+            } catch (e) {
+                console.warn("Error saving settings to localStorage:", e);
+            }
+        }
+        
+        /**
+         * (NEW) Load settings from Local Storage
+         */
+        function loadSettingsFromLocalStorage() {
+             try {
+                const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
+                if (savedSettings) {
+                    // ใช้ Object.assign เพื่อ merge ค่าที่โหลดมา, เผื่อมี key ใหม่ในอนาคต
+                    Object.assign(settings, JSON.parse(savedSettings));
+                    console.log("Settings loaded from localStorage:", settings);
+                }
+            } catch (e) {
+                console.warn("Error loading settings from localStorage:", e);
+            }
+        }
+
+        function toggleSettingsModal() {
+            settingsModal.classList.toggle('hidden');
+            if (!settingsModal.classList.contains('hidden')) {
+                // โหลดค่าปัจจุบัน (จาก settings object) ไปแสดงใน Modal
+                document.getElementById('reveal-delay').value = settings.revealDelayMs;
+                document.getElementById('sfx-toggle').checked = settings.enableSFX;
+                document.getElementById('tts-toggle').checked = settings.ttsFinal;
+                document.getElementById('no-repeat-toggle').checked = settings.noRepeat;
+                document.getElementById(settings.revealMode === 'manual' ? 'mode-manual' : 'mode-auto').checked = true;
+            }
+        }
+        
+        /**
+         * (MODIFIED) Save settings from modal AND save to local storage
+         */
+        function saveSettings() {
+            settings.revealDelayMs = parseInt(document.getElementById('reveal-delay').value) || 300;
+            settings.enableSFX = document.getElementById('sfx-toggle').checked;
+            settings.ttsFinal = document.getElementById('tts-toggle').checked;
+            settings.noRepeat = document.getElementById('no-repeat-toggle').checked;
+            settings.revealMode = document.getElementById('mode-manual').checked ? 'manual' : 'auto';
+
+            // (NEW) Save to local storage
+            saveSettingsToLocalStorage();
+
+            // ถ้าปิด NoRepeat, ต้องรีเซ็ต session
+            if (!settings.noRepeat) {
+                resetSession();
+            }
+            
+            toggleSettingsModal();
+        }
+
+        // --- INITIALIZATION ---
+        function initApp() {
+            // (NEW) Load settings first
+            loadSettingsFromLocalStorage();
+
+            // (NEW) Init Firebase
+            initFirebase();
+
+            // Attach Event Listeners
+            startButton.addEventListener('click', () => {
+                initAudio();
+                startRevealProcess();
+            });
+            nextButton.addEventListener('click', startRevealProcess);
+            resetButton.addEventListener('click', resetSession);
+            updateListButton.addEventListener('click', updateMasterNamesFromTextArea); // (RENAMED)
+            settingsButton.addEventListener('click', toggleSettingsModal);
+            closeSettingsButton.addEventListener('click', saveSettings);
+            
+            revealAnswerButton.addEventListener('click', () => {
+                hideButton(revealAnswerButton);
+                startScrambleEffect();
+            });
+
+            // (NEW) Attach Firebase Listeners
+            loadSelectedListButton.addEventListener('click', handleLoadSelectedList);
+            deleteSelectedListButton.addEventListener('click', handleDeleteSelectedList);
+            saveAsNewListButton.addEventListener('click', handleSaveAsNewList);
+            updateSelectedListButton.addEventListener('click', handleUpdateSelectedList);
+
+            // Load initial names from text area into game state
+            updateMasterNamesFromTextArea();
+        }
+
+        // Start the app
+        document.addEventListener('DOMContentLoaded', initApp);
+        
+    </script>
+</body>
+</html>
