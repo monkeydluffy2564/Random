@@ -18,18 +18,28 @@
         textarea::-webkit-scrollbar { display: none; }
         textarea { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* (NEW) เพิ่มสไตล์สำหรับปุ่มขนาดเล็ก */
         .btn-small {
             padding: 0.25rem 0.75rem;
             font-size: 0.875rem;
             border-radius: 0.375rem;
             transition: all 0.2s;
         }
+
+        /* (NEW) Spinner for AI Loading */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #ffffff;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
     </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
 
-    <!-- ... (ส่วน HTML body ไม่เปลี่ยนแปลง) ... -->
     <div class="w-full max-w-4xl mx-auto">
         
         <header class="text-center mb-6">
@@ -37,10 +47,33 @@
             <p id="slogan" class="text-xl md:text-2xl text-blue-100 mt-2">ทุกตัวอักษรคือความลุ้น!</p>
         </header>
 
+        <!-- (NEW) App Mode Toggle -->
+        <div class="flex justify-center gap-4 mb-4 bg-gray-800 p-2 rounded-lg">
+            <div>
+                <input type="radio" id="mode-toggle-names" name="appMode" value="names" class="hidden peer" checked>
+                <label for="mode-toggle-names" class="block w-full text-center px-4 py-2 rounded-md cursor-pointer text-gray-400 peer-checked:bg-blue-600 peer-checked:text-white transition-colors">
+                    โหมดสุ่มชื่อนักเรียน
+                </label>
+            </div>
+            <div>
+                <input type="radio" id="mode-toggle-words" name="appMode" value="wordgame" class="hidden peer">
+                <label for="mode-toggle-words" class="block w-full text-center px-4 py-2 rounded-md cursor-pointer text-gray-400 peer-checked:bg-green-600 peer-checked:text-white transition-colors">
+                    โหมดเกมคำศัพท์ (AI)
+                </label>
+            </div>
+        </div>
+
         <!-- Reveal Area -->
-        <div id="reveal-area" class="w-full min-h-[150px] md:min-h-[200px] bg-blue-900/50 rounded-xl shadow-2xl flex items-center justify-center p-6 mb-6 border-2 border-blue-700">
+        <div id="reveal-area" class="w-full min-h-[150px] md:min-h-[200px] bg-blue-900/50 rounded-xl shadow-2xl flex flex-col items-center justify-center p-6 mb-6 border-2 border-blue-700">
             <span id="reveal-text" class="text-4xl md:text-7xl font-bold font-mono tracking-widest text-gray-400 select-none">
                 _ _ _ _ _
+            </span>
+            
+            <span id="math-challenge-text" class="text-2xl md:text-4xl text-yellow-300 mt-4 hidden">
+                (คำถาม: 5 + 3 = ?)
+            </span>
+			<span id="countdown-timer" class="text-5xl md:text-6xl font-bold text-red-500 mt-3 hidden">
+                10
             </span>
         </div>
 
@@ -65,11 +98,12 @@
 
         <!-- Data Input & History: ใส่รายชื่อและประวัติ -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Name Input -->
-            <div class="bg-gray-800 p-4 rounded-lg shadow-inner space-y-3">
+            
+            <!-- (MODIFIED) Name Input Panel -->
+            <div id="name-list-manager" class="bg-gray-800 p-4 rounded-lg shadow-inner space-y-3">
                 <h3 class="text-lg font-semibold text-blue-200">รายชื่อนักเรียน</h3>
                 
-                <!-- (NEW) Firebase List Management -->
+                <!-- Firebase List Management -->
                 <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-700 space-y-2">
                     <label class="block text-sm font-medium text-gray-400">จัดการรายชื่อที่บันทึกไว้ (Firebase)</label>
                     <div class="flex gap-2">
@@ -101,9 +135,57 @@
                 </button>
             </div>
 
+            <!-- (NEW) Word Game Panel -->
+            <div id="word-list-manager" class="bg-gray-800 p-4 rounded-lg shadow-inner space-y-3 hidden">
+                <h3 class="text-lg font-semibold text-green-200">ชุดคำศัพท์ (AI)</h3>
+
+                <!-- AI Generation Section -->
+                <div class="bg-green-900/30 p-3 rounded-lg border border-green-700 space-y-3">
+                    <h4 class="text-md font-semibold text-green-100">สร้างชุดคำด้วย AI</h4>
+                    <div class="flex gap-3">
+                        <div class="flex-1">
+                            <label for="ai-word-count" class="block text-sm font-medium text-gray-300">จำนวนคำ</label>
+                            <input type="number" id="ai-word-count" value="5" min="3" max="10" class="w-full mt-1 bg-gray-700 text-white rounded-md p-2 text-sm border border-gray-600">
+                        </div>
+                        <div class="flex-1">
+                            <label for="ai-start-length" class="block text-sm font-medium text-gray-300">ตัวอักษรเริ่มต้น</label>
+                            <input type="number" id="ai-start-length" value="2" min="2" max="5" class="w-full mt-1 bg-gray-700 text-white rounded-md p-2 text-sm border border-gray-600">
+                        </div>
+                    </div>
+                    <button id="ai-generate-button" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg transition duration-200 flex items-center justify-center gap-2">
+                        <div id="ai-loading-spinner" class="spinner hidden"></div>
+                        <span>สร้างชุดคำ (AI)</span>
+                    </button>
+                    <p id="ai-error-message" class="text-red-400 text-sm hidden text-center">การสร้างคำล้มเหลว กรุณาลองใหม่</p>
+                </div>
+
+                <!-- Firebase Word List Management -->
+                <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-700 space-y-2">
+                    <label class="block text-sm font-medium text-gray-400">จัดการชุดคำที่บันทึกไว้ (Firebase)</label>
+                    <div class="flex gap-2">
+                        <select id="word-list-select" class="w-full bg-gray-700 text-white border border-gray-600 rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">กำลังโหลด...</option>
+                        </select>
+                        <button id="load-selected-word-list-button" class="btn-small bg-blue-600 hover:bg-blue-500 text-white whitespace-nowrap">โหลด</button>
+                        <button id="delete-selected-word-list-button" class="btn-small bg-red-600 hover:bg-red-500 text-white whitespace-nowrap">ลบ</button>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="new-word-list-name-input" class="w-full bg-gray-700 text-white border border-gray-600 rounded-md p-2 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="ชื่อชุดคำใหม่...">
+                        <button id="save-as-new-word-list-button" class="btn-small bg-green-600 hover:bg-green-500 text-white whitespace-nowrap">บันทึกใหม่</button>
+                    </div>
+                     <button id="update-selected-word-list-button" class="w-full btn-small bg-yellow-700 hover:bg-yellow-600 text-white whitespace-nowrap">บันทึกทับ (อัปเดต) ชุดที่เลือก</button>
+                </div>
+                
+                <!-- Text Area -->
+                <textarea id="word-list-textarea" class="w-full h-36 bg-gray-900 text-gray-100 rounded-md p-3 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="กา&#10;ข้าว&#10;กล้วย..."></textarea>
+                <button id="update-word-list-button" class="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
+                    โหลดชุดคำนี้เข้าเกม
+                </button>
+            </div>
+
             <!-- History -->
             <div class="bg-gray-800 p-4 rounded-lg shadow-inner">
-                <h3 class="text-lg font-semibold text-blue-200 mb-2">ประวัติการเลือก (รอบนี้)</h3>
+                <h3 id="history-title" class="text-lg font-semibold text-blue-200 mb-2">ประวัติการเลือก (รอบนี้)</h3>
                 <div id="history-area" class="w-full h-48 bg-gray-900 text-gray-400 rounded-md p-3 border border-gray-700 overflow-y-auto">
                     <p>ยังไม่มีใครถูกเลือก...</p>
                 </div>
@@ -116,7 +198,7 @@
 
     </div> <!-- End Main Application Container -->
 
-    <!-- (FIXED) Settings Modal (Restored Clean Version) -->
+    <!-- Settings Modal (ไม่เปลี่ยนแปลง) -->
     <div id="settings-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 hidden backdrop-blur-sm">
         <div class="bg-white text-gray-900 w-full max-w-md p-6 rounded-xl shadow-2xl">
             <h2 class="text-2xl font-bold mb-6 text-center">ตั้งค่าการสุ่ม</h2>
@@ -137,20 +219,32 @@
                     <label for="no-repeat-toggle" class="font-medium">ไม่สุ่มชื่อซ้ำ (ในรอบนี้)</label>
                     <input type="checkbox" id="no-repeat-toggle" class="h-6 w-6 rounded text-blue-600" checked>
                 </div>
+                <div class="flex items-center justify-between">
+                    <label for="math-challenge-toggle" class="font-medium">โหมดคำถามท้าทาย (คณิต)</label>
+                    <input type="checkbox" id="math-challenge-toggle" class="h-6 w-6 rounded text-blue-600">
+                </div>
+				<div class="flex items-center justify-between">
+                    <label for="math-timer-seconds" class="font-medium">เวลาตอบคำถาม (วินาที) <span class="text-xs text-gray-500">(0 = ปิด)</span></label>
+                    <input type="number" id="math-timer-seconds" value="10" min="0" step="1" class="w-24 p-2 border border-gray-300 rounded-md text-center">
+                </div>
+                
                 <div class="border-t pt-4 mt-4">
                     <label class="font-medium mb-2 block">โหมดการสุ่ม:</label>
                     <div class="flex items-center mb-2">
                         <input type="radio" id="mode-auto" name="revealMode" value="auto" class="h-5 w-5 text-blue-600" checked>
                         <label for="mode-auto" class="ml-2 text-sm">1. สลับ -> จัดเรียงอัตโนมัติ</label>
                     </div>
-                    <div class="flex items-center">
+                    <div class="flex items-center mb-2"> 
                         <input type="radio" id="mode-manual" name="revealMode" value="manual" class="h-5 w-5 text-blue-600">
                         <label for="mode-manual" class="ml-2 text-sm">2. สลับ -> รอ "เฉลย"</label>
+                    </div>
+					<div class="flex items-center">
+                        <input type="radio" id="mode-direct" name="revealMode" value="direct" class="h-5 w-5 text-blue-600">
+                        <label for="mode-direct" class="ml-2 text-sm">3. สุ่มและแสดงผลทันที (ไม่สลับอักษร)</label>
                     </div>
                 </div>
             </div>
 
-            <!-- This button was missing -->
             <button id="close-settings-button" class="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200">
                 บันทึกและปิด
             </button>
@@ -160,653 +254,7 @@
 
 
     <!-- JavaScript Logic -->
-    <script type="module">
-        // (NEW) Firebase Imports
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, setDoc, getDoc, doc, collection, addDoc, getDocs, onSnapshot, deleteDoc, updateDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // (NEW) Firebase Config
-        const firebaseConfig = {
-            apiKey: "AIzaSyBHmJ7M5qf20lKPTB9_aE2Ppa0-jTryuuI",
-            authDomain: "programpp-91f08.firebaseapp.com",
-            projectId: "programpp-91f08",
-            storageBucket: "programpp-91f08.firebasestorage.app",
-            messagingSenderId: "415403943738",
-            appId: "1:415403943738:web:f56ec72de49f81f0315203",
-            measurementId: "G-W19QNQQR25"
-        };
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-smartroll-app';
-        let db, auth, userId;
-        let listCollectionPath; // = `artifacts/${appId}/public/data/name-lists`
-        let listsCollection;
-        let settingsDoc; // (NEW) Path to user's settings doc
-
-        // --- STATE MANAGEMENT ---
-        let masterNames = [];
-        let availableNames = [];
-        let pickedNames = [];
-        let isSpinning = false;
-        let revealTimer = null;
-        let currentWinner = null;
-        let revealQueue = [];
-        let letterSpans = [];
-        let revealIndex = 0;
-
-        // (REMOVED) Settings Storage Key (No longer using localStorage)
-        // const SETTINGS_STORAGE_KEY = 'smartRollSettings'; 
-
-        // Settings (Default)
-        const settings = {
-            revealDelayMs: 300,
-            enableSFX: true,
-            ttsFinal: true,
-            noRepeat: true,
-            revealMode: 'auto',
-        };
-
-        // Audio Context
-        let audioCtx = null;
-        const tickFrequencies = [880, 987, 1046, 1174, 1318];
-        let tickIndex = 0;
-
-        // Grapheme Segmenter
-        const segmenter = new Intl.Segmenter('th', { granularity: 'grapheme' });
-        const getGraphemes = (str) => Array.from(segmenter.segment(str)).map(s => s.segment);
-        
-        // DOM Elements
-        const revealArea = document.getElementById('reveal-area');
-        const revealText = document.getElementById('reveal-text');
-        const startButton = document.getElementById('start-button');
-        const nextButton = document.getElementById('next-button');
-        const revealAnswerButton = document.getElementById('reveal-answer-button');
-        const resetButton = document.getElementById('reset-button');
-        const settingsButton = document.getElementById('settings-button');
-        const settingsModal = document.getElementById('settings-modal');
-        const closeSettingsButton = document.getElementById('close-settings-button');
-        const nameListTextArea = document.getElementById('name-list');
-        const updateListButton = document.getElementById('update-list-button');
-        const historyArea = document.getElementById('history-area');
-        const namesRemainingEl = document.getElementById('names-remaining');
-        const namesTotalEl = document.getElementById('names-total');
-
-        // (NEW) Firebase UI DOM Elements
-        const listSelect = document.getElementById('list-select');
-        const loadSelectedListButton = document.getElementById('load-selected-list-button');
-        const deleteSelectedListButton = document.getElementById('delete-selected-list-button');
-        const newListNameInput = document.getElementById('new-list-name-input');
-        const saveAsNewListButton = document.getElementById('save-as-new-list-button');
-        const updateSelectedListButton = document.getElementById('update-selected-list-button');
-
-
-        // --- CORE LOGIC ---
-        // (Shuffle, Start Reveal, Reveal Next, Scramble, Announce Winner... 
-        //  ...ทั้งหมดนี้ไม่เปลี่ยนแปลงจากเดิม)
-        function shuffleArray(array) {
-            for (let i = array.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[j], array[i]];
-            }
-            return array;
-        }
-        function startRevealProcess() {
-            clearTimeout(revealTimer);
-            if (isSpinning) return;
-            if (availableNames.length === 0) {
-                revealText.textContent = "รายชื่อหมดแล้ว!";
-                revealText.classList.add("text-red-400");
-                showButton(resetButton);
-                hideButton(startButton);
-                hideButton(nextButton);
-                hideButton(revealAnswerButton);
-                return;
-            }
-            isSpinning = true;
-            hideButton(startButton);
-            hideButton(nextButton);
-            hideButton(resetButton);
-            hideButton(revealAnswerButton);
-            revealArea.classList.remove('flash-winner');
-            revealText.classList.remove("text-red-400");
-            currentWinner = availableNames[Math.floor(Math.random() * availableNames.length)];
-            const winnerGraphemes = getGraphemes(currentWinner);
-            const shuffledGraphemes = shuffleArray([...winnerGraphemes]);
-            revealQueue = shuffledGraphemes;
-            revealIndex = 0;
-            letterSpans = [];
-            revealText.innerHTML = '';
-            for (let i = 0; i < winnerGraphemes.length; i++) {
-                const span = document.createElement('span');
-                span.textContent = '_';
-                span.className = 'text-gray-600 transition-all duration-100 ease-in-out inline-block mx-1';
-                revealText.appendChild(span);
-                letterSpans.push(span);
-            }
-            revealTimer = setTimeout(revealNextShuffledGrapheme, settings.revealDelayMs);
-        }
-        function revealNextShuffledGrapheme() {
-            if (revealQueue.length === 0) {
-                if (settings.revealMode === 'auto') {
-                    revealTimer = setTimeout(startScrambleEffect, settings.revealDelayMs * 3);
-                } else {
-                    showButton(revealAnswerButton);
-                }
-                return;
-            }
-            playTickSFX();
-            const nextGrapheme = revealQueue.shift();
-            const spanToFill = letterSpans[revealIndex];
-            if (spanToFill) {
-                spanToFill.textContent = nextGrapheme;
-                spanToFill.className = 'letter-reveal transition-all duration-100 ease-in-out inline-block mx-1 text-white'; 
-                revealIndex++;
-            }
-            revealTimer = setTimeout(revealNextShuffledGrapheme, settings.revealDelayMs);
-        }
-        function startScrambleEffect() {
-            const finalGraphemes = getGraphemes(currentWinner);
-            const scrambleDuration = 1500; 
-            const scrambleInterval = 50;
-            const scrambleEndTime = Date.now() + scrambleDuration;
-            scrambleLoop(scrambleEndTime, finalGraphemes);
-        }
-        function scrambleLoop(endTime, finalGraphemes) {
-            const now = Date.now();
-            if (now >= endTime) {
-                for (let i = 0; i < letterSpans.length; i++) {
-                    letterSpans[i].textContent = finalGraphemes[i];
-                    letterSpans[i].className = 'letter-reveal transition-all duration-100 ease-in-out inline-block mx-1 text-white';
-                }
-                announceWinner(currentWinner);
-            } else {
-                playTickSFX();
-                for (let span of letterSpans) {
-                    const randomGrapheme = finalGraphemes[Math.floor(Math.random() * finalGraphemes.length)];
-                    span.textContent = randomGrapheme;
-                }
-                revealTimer = setTimeout(() => scrambleLoop(endTime, finalGraphemes), 50);
-            }
-        }
-        function announceWinner(winnerName) {
-            clearTimeout(revealTimer);
-            isSpinning = false;
-            revealArea.classList.add('flash-winner');
-            playWinnerSFX();
-            if (settings.ttsFinal) {
-                speak(winnerName);
-            }
-            if (settings.noRepeat) {
-                availableNames = availableNames.filter(name => name !== winnerName);
-                if (!pickedNames.includes(winnerName)) {
-                    pickedNames.push(winnerName);
-                }
-            }
-            if (availableNames.length > 0) {
-                showButton(nextButton);
-            } else {
-                showButton(resetButton);
-                revealText.textContent = "สุ่มครบทุกคนแล้ว!";
-            }
-            updateHistoryUI();
-        }
-
-        // (FIX) --- (RESTORED) HELPER FUNCTIONS ---
-        
-        function showButton(button) {
-            if (button) button.classList.remove('hidden');
-        }
-
-        function hideButton(button) {
-            if (button) button.classList.add('hidden');
-        }
-
-        function updateHistoryUI() {
-            historyArea.innerHTML = '';
-            if (pickedNames.length === 0) {
-                historyArea.innerHTML = '<p>ยังไม่มีใครถูกเลือก...</p>';
-            } else {
-                pickedNames.forEach((name, index) => {
-                    const p = document.createElement('p');
-                    p.textContent = `${index + 1}. ${name}`;
-                    p.className = 'text-gray-300';
-                    historyArea.appendChild(p);
-                });
-                historyArea.scrollTop = historyArea.scrollHeight; // Auto-scroll
-            }
-            namesRemainingEl.textContent = availableNames.length;
-            namesTotalEl.textContent = masterNames.length;
-        }
-
-        function resetUI() {
-            revealText.innerHTML = '_ _ _ _ _';
-            revealText.classList.remove("text-red-400");
-            revealArea.classList.remove('flash-winner');
-            
-            showButton(startButton);
-            hideButton(nextButton);
-            hideButton(resetButton);
-            hideButton(revealAnswerButton);
-        }
-        
-        function updateMasterNamesFromTextArea() {
-            const namesText = nameListTextArea.value;
-            masterNames = namesText.split('\n')
-                .map(name => name.trim())
-                .filter(name => name.length > 0);
-            
-            console.log("Master names updated:", masterNames);
-            resetSession(); // This will reset everything based on the new master list
-        }
-
-        function resetSession() {
-            console.log("Resetting session...");
-            
-            availableNames = [...masterNames];
-            pickedNames = [];
-            
-            isSpinning = false;
-            clearTimeout(revealTimer);
-            currentWinner = null;
-            revealQueue = [];
-            
-            updateHistoryUI();
-            resetUI();
-        }
-
-        // (FIX) --- (RESTORED) AUDIO & TTS FUNCTIONS ---
-        
-        function initAudio() {
-            if (audioCtx) return;
-            try {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            } catch (e) {
-                console.warn("Web Audio API is not supported in this browser.");
-            }
-        }
-
-        function playTickSFX() {
-            if (!settings.enableSFX || !audioCtx) return;
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(tickFrequencies[tickIndex % tickFrequencies.length], audioCtx.currentTime);
-            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            
-            oscillator.start(audioCtx.currentTime);
-            oscillator.stop(audioCtx.currentTime + 0.05);
-            
-            tickIndex++;
-        }
-
-        function playWinnerSFX() {
-            if (!settings.enableSFX || !audioCtx) return;
-            const now = audioCtx.currentTime;
-            const gainNode = audioCtx.createGain();
-            gainNode.connect(audioCtx.destination);
-            gainNode.gain.setValueAtTime(0.5, now);
-
-            const osc1 = audioCtx.createOscillator();
-            osc1.type = 'triangle';
-            osc1.frequency.setValueAtTime(523.25, now); // C5
-            osc1.connect(gainNode);
-            osc1.start(now);
-            osc1.stop(now + 0.3);
-
-            const osc2 = audioCtx.createOscillator();
-            osc2.type = 'triangle';
-            osc2.frequency.setValueAtTime(659.25, now + 0.1); // E5
-            osc2.connect(gainNode);
-            osc2.start(now + 0.1);
-            osc2.stop(now + 0.3);
-            
-            const osc3 = audioCtx.createOscillator();
-            osc3.type = 'triangle';
-            osc3.frequency.setValueAtTime(783.99, now + 0.2); // G5
-            osc3.connect(gainNode);
-            osc3.start(now + 0.2);
-            osc3.stop(now + 0.3);
-            
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
-        }
-
-        function speak(text) {
-            if (!settings.ttsFinal || !window.speechSynthesis) return;
-            try {
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'th-TH';
-                utterance.rate = 0.9;
-                window.speechSynthesis.cancel(); // Clear queue
-                window.speechSynthesis.speak(utterance);
-            } catch (e) {
-                console.warn("Speech Synthesis failed:", e);
-            }
-        }
-
-
-        // --- (NEW) FIREBASE FUNCTIONS ---
-        
-        /**
-         * (NEW) Initialize Firebase and Authentication
-         */
-        async function initFirebase() {
-            try {
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                setLogLevel('Debug'); // สำหรับ Debug
-                console.log("Firebase initialized.");
-
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        console.log("User signed in:", user.uid);
-                        userId = user.uid;
-
-                        // (FIX) เปลี่ยนเป็น path ส่วนกลาง (Global)
-                        // (OLD) settingsDoc = doc(db, `artifacts/${appId}/public/data/smartroll-settings/${userId}`);
-                        settingsDoc = doc(db, `artifacts/${appId}/public/data/smartroll-settings/global-settings`);
-
-                        // Setup public path for lists
-                        listCollectionPath = `artifacts/${appId}/public/data/name-lists`;
-                        listsCollection = collection(db, listCollectionPath);
-
-                        // (NEW) Load settings from Firebase *before* loading lists
-                        await loadSettingsFromFirebase();
-
-                        loadFirebaseLists(); // เริ่มโหลดลิสต์เมื่อ Auth พร้อม
-                    } else {
-                        console.log("User not signed in, signing in anonymously...");
-                        // (FIX) เราจะ sign in anonymously เข้า project ของคุณ (programpp-91f08)
-                        // เราจะไม่ใช้ __initial_auth_token ที่มาจาก Canvas 
-                        // เพราะมันเป็น token สำหรับ project อื่น
-                        await signInAnonymously(auth);
-                    }
-                });
-
-            } catch (error) {
-                console.error("Error initializing Firebase:", error);
-                listSelect.innerHTML = '<option value="">Firebase Error</option>';
-            }
-        }
-
-        /**
-         * (NEW) Load lists from Firebase into dropdown (real-time)
-         */
-        function loadFirebaseLists() {
-            if (!listsCollection) return;
-            
-            onSnapshot(listsCollection, (snapshot) => {
-                console.log("Firebase snapshot updated.");
-                listSelect.innerHTML = ''; // Clear existing options
-                
-                if (snapshot.empty) {
-                    listSelect.innerHTML = '<option value="">ไม่มีลิสต์ที่บันทึกไว้</option>';
-                    return;
-                }
-
-                // (NEW) 1. สร้าง array ชั่วคราวเพื่อเก็บลิสต์
-                const lists = [];
-                snapshot.forEach((doc) => {
-                    lists.push({
-                        id: doc.id,
-                        name: doc.data().name || 'Untitled'
-                    });
-                });
-
-                // (NEW) 2. จัดเรียง array (Sort) ตามชื่อ โดยใช้การเปรียบเทียบภาษาไทย (th)
-                lists.sort((a, b) => {
-                    return a.name.localeCompare(b.name, 'th');
-                });
-
-                // (NEW) 3. วนลูปจาก array ที่จัดเรียงแล้ว เพื่อสร้าง options
-                lists.forEach((list) => {
-                    const option = document.createElement('option');
-                    option.value = list.id;
-                    option.textContent = list.name;
-                    listSelect.appendChild(option);
-                });
-
-            }, (error) => {
-                console.error("Error loading lists from Firebase:", error);
-                listSelect.innerHTML = '<option value="">Error loading</option>';
-            });
-        }
-
-        /**
-         * (NEW) Load selected list from Firebase into text area
-         */
-        async function handleLoadSelectedList() {
-            const docId = listSelect.value;
-            if (!docId) {
-                console.log("No list selected.");
-                return;
-            }
-            try {
-                const docRef = doc(db, listCollectionPath, docId);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    nameListTextArea.value = docSnap.data().names || '';
-                    newListNameInput.value = docSnap.data().name || ''; // (FIX) Also load name into input
-                    console.log("List loaded:", docSnap.data().name);
-                    // โหลดเข้าเกมด้วยเลย
-                    updateMasterNamesFromTextArea();
-                } else {
-                    console.warn("Document does not exist.");
-                }
-            } catch (error) {
-                console.error("Error loading document:", error);
-            }
-        }
-        
-        // (FIX) --- (RESTORED) FIREBASE CRUD FUNCTIONS ---
-        
-        async function handleSaveAsNewList() {
-            const listName = newListNameInput.value.trim();
-            const namesData = nameListTextArea.value;
-            if (!listName) {
-                // (FIX) Do not use alert()
-                console.warn("List name is empty. Cannot save.");
-                newListNameInput.focus();
-                return;
-            }
-            try {
-                const docRef = await addDoc(listsCollection, {
-                    name: listName,
-                    names: namesData,
-                    createdBy: userId
-                });
-                console.log("New list saved with ID:", docRef.id);
-                newListNameInput.value = '';
-                // Dropdown จะอัปเดตเองผ่าน onSnapshot, และจะ select อันใหม่
-                listSelect.value = docRef.id;
-            } catch (error) {
-                console.error("Error saving new list:", error);
-            }
-        }
-
-        async function handleUpdateSelectedList() {
-            const docId = listSelect.value;
-            if (!docId) {
-                console.warn("No list selected. Cannot update.");
-                return;
-            }
-            
-            const listName = newListNameInput.value.trim() || listSelect.options[listSelect.selectedIndex].text;
-            const namesData = nameListTextArea.value;
-            
-            try {
-                const docRef = doc(db, listCollectionPath, docId);
-                await updateDoc(docRef, {
-                    name: listName,
-                    names: namesData
-                });
-                console.log("List updated:", docId);
-                // Dropdown จะอัปเดตเองถ้าชื่อเปลี่ยน
-            } catch (error) {
-                console.error("Error updating list:", error);
-            }
-        }
-
-        async function handleDeleteSelectedList() {
-            const docId = listSelect.value;
-            if (!docId) {
-                console.warn("No list selected. Cannot delete.");
-                return;
-            }
-            
-            // (FIX) Do not use confirm(). 
-            // In a real app, we'd show a modal. For now, we proceed.
-            // A simple safeguard: check if the input name matches the selected name
-            const selectedName = listSelect.options[listSelect.selectedIndex].text;
-            if (newListNameInput.value.trim() !== selectedName) {
-                console.warn("Input name does not match selected list. Aborting delete.");
-                // You could flash the input border red here
-                return;
-            }
-
-            try {
-                const docRef = doc(db, listCollectionPath, docId);
-                await deleteDoc(docRef);
-                console.log("List deleted:", docId);
-                // Dropdown จะอัปเดตเอง
-                nameListTextArea.value = '';
-                newListNameInput.value = '';
-                updateMasterNamesFromTextArea(); // Clear the game
-            } catch (error) {
-                console.error("Error deleting list:", error);
-            }
-        }
-
-
-        // --- (NEW) SETTINGS PERSISTENCE (FIREBASE) ---
-
-        /**
-         * (NEW) Save settings to Firebase
-         */
-        async function saveSettingsToFirebase() {
-            if (!settingsDoc) {
-                console.warn("Settings doc not ready, cannot save.");
-                return;
-            }
-            try {
-                await setDoc(settingsDoc, settings);
-                console.log("Settings saved to Firebase.");
-            } catch (e) {
-                console.error("Error saving settings to Firebase:", e);
-            }
-        }
-        
-        /**
-         * (NEW) Load settings from Firebase
-         */
-        async function loadSettingsFromFirebase() {
-             if (!settingsDoc) {
-                console.warn("Settings doc not ready, cannot load.");
-                return;
-             }
-             try {
-                const docSnap = await getDoc(settingsDoc);
-                if (docSnap.exists()) {
-                    // (FIX) Use explicit assignment with nullish coalescing
-                    // This is safer than Object.assign if loaded data is partial or has undefined values
-                    const loadedData = docSnap.data();
-                    
-                    settings.revealDelayMs = loadedData.revealDelayMs ?? settings.revealDelayMs;
-                    settings.enableSFX = loadedData.enableSFX ?? settings.enableSFX;
-                    settings.ttsFinal = loadedData.ttsFinal ?? settings.ttsFinal;
-                    settings.noRepeat = loadedData.noRepeat ?? settings.noRepeat;
-                    settings.revealMode = loadedData.revealMode ?? settings.revealMode;
-                    
-                    console.log("Settings loaded from Firebase:", settings);
-                } else {
-                    console.log("No settings doc found in Firebase, using defaults.");
-                }
-            } catch (e) {
-                console.warn("Error loading settings from Firebase:", e);
-            }
-            
-            // (FIX) Update UI *after* loading settings
-            updateSettingsModalUI();
-        }
-
-        function toggleSettingsModal() {
-            settingsModal.classList.toggle('hidden');
-            if (!settingsModal.classList.contains('hidden')) {
-                // (FIX) Update UI *when opening* modal
-                updateSettingsModalUI();
-            }
-        }
-        
-        // (FIX) Extracted function to update settings UI
-        function updateSettingsModalUI() {
-            // โหลดค่าปัจจุบัน (จาก settings object) ไปแสดงใน Modal
-            document.getElementById('reveal-delay').value = settings.revealDelayMs;
-            document.getElementById('sfx-toggle').checked = settings.enableSFX;
-            document.getElementById('tts-toggle').checked = settings.ttsFinal;
-            document.getElementById('no-repeat-toggle').checked = settings.noRepeat;
-            document.getElementById(settings.revealMode === 'manual' ? 'mode-manual' : 'mode-auto').checked = true;
-        }
-
-        /**
-         * (MODIFIED) Save settings from modal AND save to Firebase
-         */
-        async function saveSettings() {
-            settings.revealDelayMs = parseInt(document.getElementById('reveal-delay').value) || 300;
-            settings.enableSFX = document.getElementById('sfx-toggle').checked;
-            settings.ttsFinal = document.getElementById('tts-toggle').checked;
-            settings.noRepeat = document.getElementById('no-repeat-toggle').checked;
-            settings.revealMode = document.getElementById('mode-manual').checked ? 'manual' : 'auto';
-
-            // (NEW) Save to Firebase
-            await saveSettingsToFirebase();
-
-            // ถ้าปิด NoRepeat, ต้องรีเซ็ต session
-            if (!settings.noRepeat) {
-                resetSession();
-            }
-            
-            toggleSettingsModal();
-        }
-
-        // --- INITIALIZATION ---
-        function initApp() {
-            // (REMOVED) Load settings from localStorage (now handled by Firebase)
-            // loadSettingsFromLocalStorage();
-
-            // (NEW) Init Firebase (which will now also load settings)
-            initFirebase();
-
-            // Attach Event Listeners
-            startButton.addEventListener('click', () => {
-                initAudio();
-                startRevealProcess();
-            });
-            nextButton.addEventListener('click', startRevealProcess);
-            resetButton.addEventListener('click', resetSession);
-            updateListButton.addEventListener('click', updateMasterNamesFromTextArea); // (RENAMED)
-            settingsButton.addEventListener('click', toggleSettingsModal);
-            closeSettingsButton.addEventListener('click', saveSettings);
-            
-            revealAnswerButton.addEventListener('click', () => {
-                hideButton(revealAnswerButton);
-                startScrambleEffect();
-            });
-
-            // (NEW) Attach Firebase Listeners
-            loadSelectedListButton.addEventListener('click', handleLoadSelectedList);
-            deleteSelectedListButton.addEventListener('click', handleDeleteSelectedList);
-            saveAsNewListButton.addEventListener('click', handleSaveAsNewList);
-            updateSelectedListButton.addEventListener('click', handleUpdateSelectedList);
-
-            // Load initial names from text area into game state
-            updateMasterNamesFromTextArea();
-        }
-
-        // Start the app
-        document.addEventListener('DOMContentLoaded', initApp);
-        
-    </script>
+    <script type="module" src="script.min.js"></script>
+	
 </body>
 </html>
