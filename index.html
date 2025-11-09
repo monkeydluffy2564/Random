@@ -72,7 +72,7 @@
             <span id="math-challenge-text" class="text-2xl md:text-4xl text-yellow-300 mt-4 hidden">
                 (คำถาม: 5 + 3 = ?)
             </span>
-			<span id="countdown-timer" class="text-5xl md:text-6xl font-bold text-red-500 mt-3 hidden">
+			<span id="countdown-timer" class="text-2xl md:text-3xl font-bold text-red-500 mt-3 hidden">
                 10
             </span>
         </div>
@@ -93,6 +93,12 @@
             </button>
             <button id="settings-button" class="md:col-span-3 bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold py-3 px-6 rounded-lg text-lg shadow-lg transition duration-200">
                 ตั้งค่า (Settings)
+            </button>
+        </div>
+		
+		<div class="mb-6">
+            <button id="group-randomizer-button" class="w-full bg-purple-700 hover:bg-purple-600 text-white font-bold py-3 px-6 rounded-lg text-lg shadow-lg transition duration-200">
+                <i class="fas fa-users"></i> (BETA) สุ่มแบ่งกลุ่ม
             </button>
         </div>
 
@@ -227,6 +233,17 @@
                     <label for="math-timer-seconds" class="font-medium">เวลาตอบคำถาม (วินาที) <span class="text-xs text-gray-500">(0 = ปิด)</span></label>
                     <input type="number" id="math-timer-seconds" value="10" min="0" step="1" class="w-24 p-2 border border-gray-300 rounded-md text-center">
                 </div>
+				
+				<div id="math-challenge-options" class="pl-8 mt-2 space-y-2 hidden">
+                    <div class="flex items-center">
+                        <input type="radio" id="math-type-multiply" name="mathChallengeType" value="multiply" class="h-5 w-5 text-blue-600">
+                        <label for="math-type-multiply" class="ml-2 text-sm">1. โจทย์การคูณ (แม่ 2-12)</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="radio" id="math-type-game24" name="mathChallengeType" value="game24" class="h-5 w-5 text-blue-600">
+                        <label for="math-type-game24" class="ml-2 text-sm">2. เกม 24 (4 ตัวเลข)</label>
+                    </div>
+                </div>
                 
                 <div class="border-t pt-4 mt-4">
                     <label class="font-medium mb-2 block">โหมดการสุ่ม:</label>
@@ -252,6 +269,58 @@
         </div>
     </div>
 
+
+<div id="group-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 hidden backdrop-blur-sm z-50">
+        <div class="bg-gray-900 text-white w-full max-w-4xl max-h-[90vh] p-6 rounded-xl shadow-2xl flex flex-col">
+            <h2 class="text-2xl font-bold mb-4 text-center text-purple-300">ผลการสุ่มแบ่งกลุ่ม</h2>
+            
+            <div id="group-results-area" class="overflow-y-auto space-y-4 p-2 bg-gray-800 rounded-lg">
+                </div>
+
+            <button id="close-group-modal-button" class="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200">
+                ปิด
+            </button>
+			<button id="use-groups-button" class="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200">
+                เริ่มสุ่มโดยใช้กลุ่มเหล่านี้
+            </button>
+        </div>
+    </div>
+	
+	<div id="member-list-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 hidden backdrop-blur-sm z-50">
+        <div class="bg-gray-800 text-white w-full max-w-md p-6 rounded-xl shadow-2xl flex flex-col">
+            <h2 id="member-list-title" class="text-2xl font-bold mb-4 text-center text-yellow-300">
+                </h2>
+            
+            <div id="member-list-area" class="overflow-y-auto max-h-[50vh] space-y-2 p-3 bg-gray-900 rounded-lg">
+                </div>
+
+            <button id="close-member-list-modal-button" class="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200">
+                ปิด
+            </button>
+        </div>
+    </div>
+	
+	<div id="group-input-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 hidden backdrop-blur-sm z-50">
+        <div class="bg-gray-800 text-white w-full max-w-sm p-6 rounded-xl shadow-2xl flex flex-col">
+            <h2 class="text-xl font-bold mb-4 text-center text-purple-300">
+                สุ่มแบ่งกลุ่ม
+            </h2>
+            <label for="num-groups-input" class="block text-sm font-medium text-gray-300 mb-2">คุณต้องการแบ่งนักเรียนออกเป็นกี่กลุ่ม?</label>
+            
+            <input type="number" id="num-groups-input" value="5" min="2" class="w-full bg-gray-700 text-white border border-gray-600 rounded-md p-3 text-center text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500">
+            
+            <p id="group-input-error" class="text-red-400 text-sm text-center mt-2 hidden">กรุณาใส่ตัวเลขที่ถูกต้อง</p>
+
+            <div class="grid grid-cols-2 gap-4 mt-6">
+                 <button id="cancel-group-input-button" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
+                    ยกเลิก
+                </button>
+                <button id="confirm-group-input-button" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
+                    ตกลง
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- JavaScript Logic -->
     <script type="module" src="script.min.js"></script>
